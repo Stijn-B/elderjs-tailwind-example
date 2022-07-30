@@ -1,64 +1,137 @@
-# Elder.js Template Project
+# Elder.js with TailwindCSS
 
-<img src="https://img.shields.io/badge/dynamic/json?color=brightgreen&label=Node&query=engines.node&url=https%3A%2F%2Fraw.githubusercontent.com%2Felderjs%2Ftemplate%2Fmaster%2Fpackage.json" alt="node version" />
+This tutorial has a corresponding [Github repository](https://github.com/Stijn-B/elderjs-tailwind). It's [commits](https://github.com/Stijn-B/elderjs-tailwind/commits/main) correspond with the steps of this tutorial.
 
-This is a project template for [Elder.js](https://elderguide.com/tech/elderjs/) apps. The template lives at https://github.com/elderjs/template and the Elder.js source is here: https://github.com/elderjs/elderjs
 
-Here is a demo of the template: [https://elderjs.pages.dev/](https://elderjs.pages.dev/)
+## 1. Install TailwindCSS
 
-## Get started
+TailwindCSS is only needed as a developer dependency so a `-D` arg is added to the `npm install` command.
 
-To create a new project based on this template using [degit](https://github.com/Rich-Harris/degit):
-
-```bash
-npx degit Elderjs/template elderjs-app
-cd elderjs-app
+```shell
+npm install -D tailwindcss
+npx tailwindcss init
 ```
 
-### Install the dependencies:
+PostCSS is also required but already installed if you started your ElderJS project from the [official template](https://github.com/Elderjs/template). Otherwise you should add it with `npm install -D postcss`
 
-```bash
-npm install # or just yarn
+## 2. Setup Configurations
+
+### 2.1 PostCSS Configuration
+
+
+Create a PostCSS config file `postcss.config.cjs`
+
+```shell
+code postcss.config.cjs
 ```
 
-### Start Project:
+Add the following settings to the PostCSS config file:
 
-```bash
-npm start # or npm run dev
+```cjs
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
 ```
 
-Navigate to [localhost:3000](http://localhost:3000). You should see your app running.
+### 2.2 TailwindCSS Configuration
 
-This spawns a development server, so simply edit a file in `src`, save it, and reload the page to see your changes.
+Update the `tailwind.config.js` file created in step 1 to look like this:
 
-You can also see a live demo of this template: [https://elderjs.pages.dev/](https://elderjs.pages.dev/)
-
-#### What to Expect
-
-- A dev server is watching your files for changes. It will restart when it needs to.
-- Rollup is watching your files for changes. It will restart when it needs to.
-- If your `elder.config.js` has `@elderjs/plugin-browser-reload': {}` in it's plugins, your browser will automatically restart after the server restarts.
-
-**esbuild**
-
-If you are looking for a faster development experience run `npm run esbuild` this is experimental but will be improving rapidly.
-
-### To Build HTML for Production:
-
-```bash
-npm run build
+```js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  mode: 'jit',
+  content: ["./src/**/*.{svelte,html,js,ts}"],
+  theme: {},
+  plugins: [],
+};
 ```
 
-Let the build finish. It will put all of your statically generated files in `./public`.
+## 3. Create a TailwindCSS source file
 
-If you wish to preview you can use:
+Create a `src/tailwind.css` file:
 
-```bash
-npx sirv-cli public
+```shell
+code src/tailwind.css
 ```
 
-### To Run in SSR Mode for Production:
+And add the [TailwindCSS directives](https://tailwindcss.com/docs/functions-and-directives#directives):
 
-```bash
-npm run serve
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+## 4. Expand `start` and `build` build scripts
+
+### 4.1 Add `npm-run-all`
+Install `npm-run-all` as a developer dependency with:
+
+
+```shell
+npm install -D npm-run-all
+```
+
+### 4.2 Add Tailwind scripts
+
+Add the following Tailwind scripts to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "watch:tailwind": "tailwindcss -c ./tailwind.config.js -i ./src/tailwind.css -o ./public/tailwind.css --postcss ./postcss.config.cjs  --watch",
+    "build:tailwind": "tailwindcss -c ./tailwind.config.js -i ./src/tailwind.css -o ./public/tailwind.css --minify  --postcss ./postcss.config.cjs ",
+  }
+}
+```
+
+**note**: The default Elderjs output folder is `/public`. If you changed this in the Elderjs settings (`elderjs.config.js` -> `distdir`) you should update the `-o` output paths of the tailwind scripts accordingly.
+
+For more information about the `tailwindcss` command, run `npx tailwindcss -h` in a terminal.
+
+### 4.3 Updating the `start` script
+
+In `package.json` replace the existing `dev` script with the following 2 scripts:
+
+```json
+{
+  "scripts": {
+    "dev": "run-p watch:rollup watch:tailwind",
+    "watch:rollup": "rollup -c -w --no-watch.clearScreen",
+  }
+}
+```
+
+**explanation**: The `start` script just runs the `dev` script. The current `dev` script will have to run in parallel with the new `watch:tailwind` script. To achieve this the current `dev` script is moved to a new `watch:rollup` script and then replaced with a script that runs both `watch:rollup` and `watch:tailwind` in parallel.
+
+### 4.4 Updating the `build` script
+
+In `package.json` replace the existing `build` script with the following 2 scripts:
+
+```json
+{
+  "scripts": {
+    "clean": "node ./src/cleanPublic.js",
+    "build": "run-s clean build:**",
+  }
+}
+```
+
+**explanation**: For readability the `clean` script was extracted from the `build` script. The `build` script now runs the `clean` and then all `build:` scripts sequentially. It's enough to specify only  `build:**` because `run-s` can work with [glob-like pattern matching](https://github.com/mysticatea/npm-run-all/blob/master/docs/run-s.md#glob-like-pattern-matching-for-script-names).
+
+
+
+
+## 5. Import the generated `tailwind.css`
+Import the generated `tailwind.css` file in your layout `src/layouts/Layout.svelte`.
+
+```html
+<svelte:head>
+  ...
+  <link href="/tailwind.css" rel="stylesheet" />
+</svelte:head>
 ```
