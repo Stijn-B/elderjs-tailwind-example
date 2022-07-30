@@ -44,6 +44,7 @@
       console.log('Layout.svelte > Component Mount Detail', e.detail);
     });
   </script>
+  <link href="/tailwind.css" rel="stylesheet" />
 </svelte:head>
 
 <div class="container">
