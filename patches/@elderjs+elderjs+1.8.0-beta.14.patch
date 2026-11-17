@@ -1,3 +1,20 @@
+diff --git a/node_modules/@elderjs/elderjs/build/core/bundle.js b/node_modules/@elderjs/elderjs/build/core/bundle.js
+index 9c15ac7..888fbcc 100644
+--- a/node_modules/@elderjs/elderjs/build/core/bundle.js
++++ b/node_modules/@elderjs/elderjs/build/core/bundle.js
+@@ -16,6 +16,12 @@ export default function bundle(settings) {
+                     settings.$$internal.files.updateFiles();
+                     resolve(true);
+                 }
++                else if (msg === 'rebuilt') {
++                    settings.$$internal.files.updateFiles();
++                    if (settings.$$internal.status === 'bootstrapped') {
++                        settings.$$internal.websocket?.send({ type: 'reload' });
++                    }
++                }
+                 else if (msg === 'ready') {
+                     forked.send(['start', settings]);
+                 }
 diff --git a/node_modules/@elderjs/elderjs/build/esbuild/bundleTools.js b/node_modules/@elderjs/elderjs/build/esbuild/bundleTools.js
 index 7ee377c..27d73c9 100644
 --- a/node_modules/@elderjs/elderjs/build/esbuild/bundleTools.js
@@ -41,7 +58,7 @@ index 7ee377c..27d73c9 100644
                  };
                  cache.set(`css${id}`, css);
 diff --git a/node_modules/@elderjs/elderjs/build/esbuild/esbuildBundler.js b/node_modules/@elderjs/elderjs/build/esbuild/esbuildBundler.js
-index fe9d54a..f7b8c52 100644
+index fe9d54a..a7fdca2 100644
 --- a/node_modules/@elderjs/elderjs/build/esbuild/esbuildBundler.js
 +++ b/node_modules/@elderjs/elderjs/build/esbuild/esbuildBundler.js
 @@ -2,7 +2,7 @@
@@ -53,7 +70,7 @@ index fe9d54a..f7b8c52 100644
  import glob from 'fast-glob';
  import path from 'path';
  import fs from 'fs-extra';
-@@ -59,6 +59,31 @@ export async function getPackagesWithSvelte(pkg, elderConfig) {
+@@ -59,6 +59,39 @@ export async function getPackagesWithSvelte(pkg, elderConfig) {
      }
      return sveltePackages;
  }
@@ -64,7 +81,15 @@ index fe9d54a..f7b8c52 100644
 +    const waitForInitialBuild = {
 +        name: 'elder-initial-build',
 +        setup(builder) {
-+            builder.onEnd(result => { complete(result); });
++            builder.onEnd(result => {
++                if (complete) {
++                    complete(result);
++                    complete = undefined;
++                }
++                else if (result.errors.length === 0 && process.connected) {
++                    process.send('rebuilt');
++                }
++            });
 +        },
 +    };
 +    const buildContext = await context({
@@ -85,7 +110,7 @@ index fe9d54a..f7b8c52 100644
  // eslint-disable-next-line consistent-return
  const svelteHandler = async ({ settings, svelteConfig }) => {
      try {
-@@ -68,8 +93,9 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+@@ -68,8 +101,9 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
          const initialEntryPoints = glob.sync(globPath);
          const sveltePackages = await getPackagesWithSvelte(pkg, settings);
          const elderPlugins = getPluginLocations(settings);
@@ -96,7 +121,7 @@ index fe9d54a..f7b8c52 100644
                  entryPoints: [...initialEntryPoints, ...elderPlugins.files],
                  bundle: true,
                  outdir: settings.$$internal.ssrComponents,
-@@ -81,14 +107,6 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+@@ -81,14 +115,6 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
                          svelteConfig,
                      }),
                  ],
@@ -111,7 +136,7 @@ index fe9d54a..f7b8c52 100644
                  format: 'esm',
                  target: ['es2020'],
                  platform: 'node',
-@@ -101,8 +119,8 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+@@ -101,8 +127,8 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
                      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
                      ...settings.replacements,
                  },
@@ -122,7 +147,7 @@ index fe9d54a..f7b8c52 100644
                  entryPoints: [...initialEntryPoints.filter((i) => i.includes('src/components')), ...elderPlugins.files],
                  bundle: true,
                  outdir: settings.$$internal.clientComponents,
-@@ -115,14 +133,6 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+@@ -115,14 +141,6 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
                          svelteConfig,
                      }),
                  ],
@@ -137,7 +162,7 @@ index fe9d54a..f7b8c52 100644
                  format: 'esm',
                  target: ['es2020'],
                  platform: 'browser',
-@@ -137,7 +147,7 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+@@ -137,7 +155,7 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
                      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
                      ...settings.replacements,
                  },
