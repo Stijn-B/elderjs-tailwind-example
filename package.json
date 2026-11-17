@@ -14,8 +14,9 @@
     "serve": "npm run build && NODE_ENV=production node ./src/server.js",
     "eslint": "eslint --ext .js .",
     "eslint:fix": "eslint --fix --ext .js .",
-    "prettier:svelte": "prettier --write --plugin-search-dir=. ./**/*.svelte",
-    "watch:server": "NODE_ENV=development node ./src/server.js"
+    "prettier:svelte": "prettier --write --plugin prettier-plugin-svelte \"src/**/*.svelte\"",
+    "watch:server": "NODE_ENV=development node ./src/server.js",
+    "postinstall": "patch-package --error-on-fail"
   },
   "engines": {
     "node": ">=22.12"
@@ -32,20 +33,21 @@
     "fs-extra": "^9.1.0",
     "glob": "^7.2.3",
     "intersection-observer": "^0.12.2",
+    "patch-package": "8.0.1",
     "polka": "^0.5.2",
     "sirv": "^1.0.19",
-    "svelte": "^3.59.2",
-    "svelte-preprocess": "^4.10.7"
+    "svelte": "5.57.3",
+    "svelte-preprocess": "6.0.5"
   },
   "devDependencies": {
     "autoprefixer": "^10.6.2",
-    "eslint": "^7.32.0",
-    "eslint-config-prettier": "^6.15.0",
-    "eslint-plugin-prettier": "^3.4.1",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.7",
     "npm-run-all": "^4.1.5",
     "postcss": "^8.5.33",
-    "prettier": "^2.8.8",
-    "prettier-plugin-svelte": "^2.10.1",
+    "prettier": "^3.10.1",
+    "prettier-plugin-svelte": "4.1.1",
     "tailwindcss": "^3.4.19"
   },
   "author": "Nick Reese",
@@ -84,6 +86,11 @@
       "@nickreese/seo-lint": {
         "cheerio": "1.0.0-rc.12"
       }
-    }
+    },
+    "@elderjs/elderjs": {
+      "svelte": "$svelte",
+      "esbuild": "0.28.2"
+    },
+    "picomatch": "npm:@ryotsu/picomatch@4.0.7-a"
   }
 }
