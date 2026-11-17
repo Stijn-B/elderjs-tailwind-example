@@ -1,0 +1,173 @@
+diff --git a/node_modules/@elderjs/elderjs/build/core/bundle.js b/node_modules/@elderjs/elderjs/build/core/bundle.js
+index 9c15ac7..888fbcc 100644
+--- a/node_modules/@elderjs/elderjs/build/core/bundle.js
++++ b/node_modules/@elderjs/elderjs/build/core/bundle.js
+@@ -16,6 +16,12 @@ export default function bundle(settings) {
+                     settings.$$internal.files.updateFiles();
+                     resolve(true);
+                 }
++                else if (msg === 'rebuilt') {
++                    settings.$$internal.files.updateFiles();
++                    if (settings.$$internal.status === 'bootstrapped') {
++                        settings.$$internal.websocket?.send({ type: 'reload' });
++                    }
++                }
+                 else if (msg === 'ready') {
+                     forked.send(['start', settings]);
+                 }
+diff --git a/node_modules/@elderjs/elderjs/build/esbuild/bundleTools.js b/node_modules/@elderjs/elderjs/build/esbuild/bundleTools.js
+index 7ee377c..27d73c9 100644
+--- a/node_modules/@elderjs/elderjs/build/esbuild/bundleTools.js
++++ b/node_modules/@elderjs/elderjs/build/esbuild/bundleTools.js
+@@ -38,20 +38,12 @@ export const getDependencies = (file) => {
+     }
+     return [...dependencies.values()];
+ };
+-export const getCompilerOptions = ({ type }) => {
+-    const compilerOptions = {
+-        hydratable: true,
+-        generate: 'ssr',
+-        css: false,
+-        dev: isDev,
+-        format: 'esm',
+-    };
+-    if (type === 'client') {
+-        compilerOptions.generate = 'dom';
+-        compilerOptions.format = 'esm';
+-    }
+-    return compilerOptions;
+-};
++export const getCompilerOptions = ({ type }) => ({
++    generate: type === 'client' ? 'client' : 'server',
++    css: 'external',
++    dev: isDev,
++    compatibility: { componentApi: 4 },
++});
+ export function transformFn({ svelteConfig, elderConfig, type, }) {
+     const compilerOptions = getCompilerOptions({ type });
+     const preprocessors = svelteConfig && Array.isArray(svelteConfig.preprocess)
+@@ -93,8 +85,8 @@ export function transformFn({ svelteConfig, elderConfig, type, }) {
+             }
+             if (type === 'ssr') {
+                 const css = {
+-                    code: compiled.css.code || '',
+-                    map: compiled.css.map || '',
++                    code: compiled.css?.code || '',
++                    map: compiled.css?.map || '',
+                     priority: cssFilePriority(id),
+                 };
+                 cache.set(`css${id}`, css);
+diff --git a/node_modules/@elderjs/elderjs/build/esbuild/esbuildBundler.js b/node_modules/@elderjs/elderjs/build/esbuild/esbuildBundler.js
+index fe9d54a..a7fdca2 100644
+--- a/node_modules/@elderjs/elderjs/build/esbuild/esbuildBundler.js
++++ b/node_modules/@elderjs/elderjs/build/esbuild/esbuildBundler.js
+@@ -2,7 +2,7 @@
+ // server that reloads the app which watches the file system for changes.
+ // reload can also be called after esbuild finishes the rebuild.
+ // the file watcher should restart the entire esbuild process when a new svelte file is seen. This includes clearing caches.
+-import { build } from 'esbuild';
++import { build, context } from 'esbuild';
+ import glob from 'fast-glob';
+ import path from 'path';
+ import fs from 'fs-extra';
+@@ -59,6 +59,39 @@ export async function getPackagesWithSvelte(pkg, elderConfig) {
+     }
+     return sveltePackages;
+ }
++const buildWithOptionalWatch = async (options, watch) => {
++    if (!watch) return build(options);
++    let complete;
++    const initialBuild = new Promise(resolve => { complete = resolve; });
++    const waitForInitialBuild = {
++        name: 'elder-initial-build',
++        setup(builder) {
++            builder.onEnd(result => {
++                if (complete) {
++                    complete(result);
++                    complete = undefined;
++                }
++                else if (result.errors.length === 0 && process.connected) {
++                    process.send('rebuilt');
++                }
++            });
++        },
++    };
++    const buildContext = await context({
++        ...options,
++        plugins: [...options.plugins, waitForInitialBuild],
++    });
++    try {
++        await buildContext.watch();
++        const result = await initialBuild;
++        if (result.errors.length) throw new Error('Elder.js initial watch build failed.');
++        return result;
++    }
++    catch (error) {
++        await buildContext.dispose();
++        throw error;
++    }
++};
+ // eslint-disable-next-line consistent-return
+ const svelteHandler = async ({ settings, svelteConfig }) => {
+     try {
+@@ -68,8 +101,9 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+         const initialEntryPoints = glob.sync(globPath);
+         const sveltePackages = await getPackagesWithSvelte(pkg, settings);
+         const elderPlugins = getPluginLocations(settings);
++        const watch = !settings.$$internal.production && !!settings.server;
+         return await Promise.all([
+-            build({
++            buildWithOptionalWatch({
+                 entryPoints: [...initialEntryPoints, ...elderPlugins.files],
+                 bundle: true,
+                 outdir: settings.$$internal.ssrComponents,
+@@ -81,14 +115,6 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+                         svelteConfig,
+                     }),
+                 ],
+-                watch: !settings.$$internal.production && settings.server
+-                    ? {
+-                        onRebuild(error) {
+-                            if (error)
+-                                console.error('ssr watch build failed:', error);
+-                        },
+-                    }
+-                    : false,
+                 format: 'esm',
+                 target: ['es2020'],
+                 platform: 'node',
+@@ -101,8 +127,8 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+                     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+                     ...settings.replacements,
+                 },
+-            }),
+-            build({
++            }, watch),
++            buildWithOptionalWatch({
+                 entryPoints: [...initialEntryPoints.filter((i) => i.includes('src/components')), ...elderPlugins.files],
+                 bundle: true,
+                 outdir: settings.$$internal.clientComponents,
+@@ -115,14 +141,6 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+                         svelteConfig,
+                     }),
+                 ],
+-                watch: !settings.$$internal.production && settings.server
+-                    ? {
+-                        onRebuild(error) {
+-                            if (error)
+-                                console.error('client watch build failed:', error);
+-                        },
+-                    }
+-                    : false,
+                 format: 'esm',
+                 target: ['es2020'],
+                 platform: 'browser',
+@@ -137,7 +155,7 @@ const svelteHandler = async ({ settings, svelteConfig }) => {
+                     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+                     ...settings.replacements,
+                 },
+-            }),
++            }, watch),
+         ]);
+     }
+     catch (e) {
