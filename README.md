@@ -93,38 +93,11 @@ Add the following Tailwind scripts to your `package.json`:
 
 For more information about the `tailwindcss` command, run `npx tailwindcss -h` in a terminal.
 
-### 4.3 Updating the `start` script
+### 4.3 Running the example
 
-In `package.json` replace the existing `dev` script with the following 2 scripts:
+Use Node.js 22.12 or newer. Run `npm ci` and then `npm run dev` to start Elder’s development server and the Tailwind watcher. The bundled Elder.js compiler watches Svelte source changes.
 
-```json
-{
-  "scripts": {
-    "dev": "run-p watch:rollup watch:tailwind",
-    "watch:rollup": "rollup -c -w --no-watch.clearScreen",
-  }
-}
-```
-
-**explanation**: The `start` script just runs the `dev` script. The current `dev` script will have to run in parallel with the new `watch:tailwind` script. To achieve this the current `dev` script is moved to a new `watch:rollup` script and then replaced with a script that runs both `watch:rollup` and `watch:tailwind` in parallel.
-
-### 4.4 Updating the `build` script
-
-In `package.json` replace the existing `build` script with the following 2 scripts:
-
-```json
-{
-  "scripts": {
-    "clean": "node ./src/cleanPublic.js",
-    "build": "run-s clean build:**",
-  }
-}
-```
-
-**explanation**: For readability the `clean` script was extracted from the `build` script. The `build` script now runs the `clean` and then all `build:` scripts sequentially. It's enough to specify only  `build:**` because `run-s` can work with [glob-like pattern matching](https://github.com/mysticatea/npm-run-all/blob/master/docs/run-s.md#glob-like-pattern-matching-for-script-names).
-
-
-
+Run `npm run build` to clean the output, generate the static pages and build the production CSS. The generated site is written to `public/`. Run `npm run serve` to build and start the example’s production SSR server.
 
 ## 5. Import the generated `tailwind.css`
 Import the generated `tailwind.css` file in your layout `src/layouts/Layout.svelte`.
